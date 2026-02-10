@@ -5,7 +5,6 @@
 **Researcher**: Mubashshir Alam Ifrad  
 **Institution**: Dickinson College  
 **Supervisor**: Professor John MacCormick  
-**Duration**: Spring 2026 (10 weeks)
 
 ## Project Goals
 
