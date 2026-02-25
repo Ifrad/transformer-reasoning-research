@@ -264,7 +264,7 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
-    char_to_idx, idx_to_char, vocab_size = create_vocabulary()
+    char_to_idx, idx_to_char, vocab_size, _ = create_vocabulary()
     
     model = AdditionTransformer(vocab_size=vocab_size)
     model.load_state_dict(torch.load("best_model.pt", map_location=device))

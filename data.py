@@ -81,12 +81,20 @@ def generate_cot_addition_pairs(n_digits, num_samples):
     
     return data
 
-def create_vocabulary():
-    """Create character-level vocabulary"""
+def create_vocabulary(cot=False):
+    """
+    Create character-level vocabulary.
+    When cot=False: base chars 0123456789+=
+    When cot=True: extends with (, ), n, c, , r,e,s,u,l,t and P (PAD), vocab size 24
+    """
     chars = '0123456789+='
+    pad_idx = None
+    if cot:
+        chars += '(),ncresultP'  # CoT markers; result; P = PAD for variable-length sequences
+        pad_idx = len(chars) - 1  # P is last
     char_to_idx = {ch: i for i, ch in enumerate(chars)}
     idx_to_char = {i: ch for i, ch in enumerate(chars)}
-    return char_to_idx, idx_to_char, len(chars)
+    return char_to_idx, idx_to_char, len(chars), pad_idx
 
 def encode_data(data, char_to_idx):
     """Convert string data to token indices"""
@@ -96,19 +104,21 @@ def encode_data(data, char_to_idx):
         encoded.append(tokens)
     return encoded
 
-def prepare_dataset(n_digits, num_samples, train_split=0.8):
+def prepare_dataset(n_digits, num_samples, train_split=0.8, cot=False):
     """
     Complete data preparation pipeline
     
+    Args:
+        cot: if True, use CoT format data and extended vocabulary
+    
     Returns:
-        train_data, val_data, char_to_idx, idx_
-to_char, vocab_size
+        train_data, val_data, char_to_idx, idx_to_char, vocab_size
     """
     # Generate problems
-    data = generate_addition_pairs(n_digits, num_samples)
+    data = generate_cot_addition_pairs(n_digits, num_samples) if cot else generate_addition_pairs(n_digits, num_samples)
     
     # Create vocabulary
-    char_to_idx, idx_to_char, vocab_size = create_vocabulary()
+    char_to_idx, idx_to_char, vocab_size, pad_idx = create_vocabulary(cot=cot)
     
     # Encode
     encoded = encode_data(data, char_to_idx)
@@ -118,7 +128,7 @@ to_char, vocab_size
     train_data = encoded[:split_idx]
     val_data = encoded[split_idx:]
     
-    return train_data, val_data, char_to_idx, idx_to_char, vocab_size
+    return train_data, val_data, char_to_idx, idx_to_char, vocab_size, pad_idx
 
 # Quick test
 if __name__ == "__main__":
@@ -139,9 +149,17 @@ if __name__ == "__main__":
     for p in cot_3:
         print(f"  {p}")
     
-    # Test full pipeline
-    train, val, c2i, i2c, vocab_size = prepare_dataset(n_digits=2, num_samples=100)
-    print(f"\nVocabulary size: {vocab_size}")
+    # Test full pipeline (base vocabulary)
+    train, val, c2i, i2c, vocab_size, _ = prepare_dataset(n_digits=2, num_samples=100)
+    print(f"\nBase vocabulary size (for transformer): {vocab_size}")
     print(f"Training samples: {len(train)}")
     print(f"Validation samples: {len(val)}")
     print(f"First encoded example: {train[0]}")
+    
+    # Test CoT vocabulary and pipeline
+    c2i_cot, i2c_cot, vocab_size_cot, pad_idx_cot = create_vocabulary(cot=True)
+    print(f"\nCoT vocabulary size (for transformer): {vocab_size_cot}")
+    print(f"CoT pad_idx: {pad_idx_cot}")
+    print("CoT vocabulary chars:", "".join(i2c_cot[i] for i in sorted(i2c_cot.keys())))
+    train_cot, val_cot, _, _, _, _ = prepare_dataset(n_digits=2, num_samples=100, cot=True)
+    print(f"CoT training samples: {len(train_cot)}, validation: {len(val_cot)}")

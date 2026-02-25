@@ -47,8 +47,8 @@ def train_epoch(model, train_loader, optimizer, criterion, device):
     
     return total_loss / len(train_loader)
 
-def evaluate(model, val_loader, criterion, device, idx_to_char):
-    """Evaluate model"""
+def evaluate(model, val_loader, criterion, device, idx_to_char, pad_idx):
+    """Evaluate model (accuracy excludes padding)"""
     model.eval()
     total_loss = 0
     correct = 0
@@ -63,12 +63,13 @@ def evaluate(model, val_loader, criterion, device, idx_to_char):
             loss = criterion(outputs.reshape(-1, outputs.size(-1)), targets.reshape(-1))
             total_loss += loss.item()
             
-            # Calculate accuracy
+            # Calculate accuracy (exclude padding)
             predictions = outputs.argmax(dim=-1)
-            correct += (predictions == targets).sum().item()
-            total += targets.numel()
+            mask = targets != pad_idx
+            correct += ((predictions == targets) & mask).sum().item()
+            total += mask.sum().item()
     
-    accuracy = correct / total
+    accuracy = correct / total if total > 0 else 0.0
     avg_loss = total_loss / len(val_loader)
     
     return avg_loss, accuracy
@@ -85,46 +86,75 @@ def main():
         "nhead": 4,
         "num_layers": 2,
         "dim_feedforward": 512,
+        "vocab_size": 24,
+        "mode": "chain_of_thought",
     }
     
     # Initialize WandB
     wandb.init(
         project="transformer-addition-baseline",
         config=config,
-        name=f"{config['n_digits']}-digit-addition"
+        name="cot-2digit-addition"
     )
     
     # Device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     
-    # Prepare data
-    print("Preparing dataset...")
-    train_data, val_data, char_to_idx, idx_to_char, vocab_size, _ = prepare_dataset(
+    # Prepare data (CoT format with expanded vocabulary and PAD)
+    print("Preparing CoT dataset...")
+    train_data, val_data, char_to_idx, idx_to_char, vocab_size, pad_idx = prepare_dataset(
         n_digits=config["n_digits"],
-        num_samples=config["num_samples"]
+        num_samples=config["num_samples"],
+        cot=True
     )
+    
+    def collate_fn(batch):
+        """Pad sequences in batch to same length using pad_idx"""
+        inputs, targets = zip(*batch)
+        max_len = max(inp.size(0) for inp in inputs)
+        padded_inputs = []
+        padded_targets = []
+        for inp, tgt in zip(inputs, targets):
+            pad_len = max_len - inp.size(0)
+            padded_inputs.append(
+                torch.cat([inp, torch.full((pad_len,), pad_idx, dtype=inp.dtype)])
+            )
+            padded_targets.append(
+                torch.cat([tgt, torch.full((pad_len,), pad_idx, dtype=tgt.dtype)])
+            )
+        return torch.stack(padded_inputs), torch.stack(padded_targets)
     
     train_dataset = AdditionDataset(train_data)
     val_dataset = AdditionDataset(val_data)
     
-    train_loader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=config["batch_size"])
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=config["batch_size"],
+        shuffle=True,
+        collate_fn=collate_fn
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=config["batch_size"],
+        collate_fn=collate_fn
+    )
     
-    # Model
+    # Model (vocab_size=24 for CoT with PAD)
     print("Creating model...")
     model = AdditionTransformer(
         vocab_size=vocab_size,
         d_model=config["d_model"],
         nhead=config["nhead"],
         num_layers=config["num_layers"],
-        dim_feedforward=config["dim_feedforward"]
+        dim_feedforward=config["dim_feedforward"],
+        max_seq_len=128
     ).to(device)
     
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
     
-    # Training setup
-    criterion = nn.CrossEntropyLoss()
+    # Training setup (ignore padding in loss)
+    criterion = nn.CrossEntropyLoss(ignore_index=pad_idx)
     optimizer = optim.Adam(model.parameters(), lr=config["learning_rate"])
     
     # Training loop
@@ -133,7 +163,7 @@ def main():
     
     for epoch in range(config["epochs"]):
         train_loss = train_epoch(model, train_loader, optimizer, criterion, device)
-        val_loss, val_accuracy = evaluate(model, val_loader, criterion, device, idx_to_char)
+        val_loss, val_accuracy = evaluate(model, val_loader, criterion, device, idx_to_char, pad_idx)
         
         # Log to WandB
         wandb.log({
@@ -148,11 +178,11 @@ def main():
         print(f"  Val Loss: {val_loss:.4f}")
         print(f"  Val Accuracy: {val_accuracy:.4f}")
         
-        # Save best model
+        # Save best model (separate file from baseline)
         if val_accuracy > best_accuracy:
             best_accuracy = val_accuracy
-            torch.save(model.state_dict(), "best_model.pt")
-            wandb.save("best_model.pt")
+            torch.save(model.state_dict(), "best_model_cot.pt")
+            wandb.save("best_model_cot.pt")
     
     print(f"\nBest validation accuracy: {best_accuracy:.4f}")
     wandb.finish()
