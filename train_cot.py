@@ -77,7 +77,7 @@ def evaluate(model, val_loader, criterion, device, idx_to_char, pad_idx):
 def main():
     # Configuration
     config = {
-        "n_digits": 2,
+        "n_digits": 3,
         "num_samples": 10000,
         "batch_size": 64,
         "learning_rate": 0.001,
@@ -94,7 +94,7 @@ def main():
     wandb.init(
         project="transformer-addition-baseline",
         config=config,
-        name="cot-2digit-addition"
+        name="cot-3digit-addition"
     )
     
     # Device
@@ -181,8 +181,8 @@ def main():
         # Save best model (separate file from baseline)
         if val_accuracy > best_accuracy:
             best_accuracy = val_accuracy
-            torch.save(model.state_dict(), "best_model_cot.pt")
-            wandb.save("best_model_cot.pt")
+            torch.save(model.state_dict(), "best_model_cot_3digit.pt")
+            wandb.save("best_model_cot_3digit.pt")
     
     print(f"\nBest validation accuracy: {best_accuracy:.4f}")
     wandb.finish()
