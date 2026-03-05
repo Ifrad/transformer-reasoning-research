@@ -31,7 +31,7 @@ def build_cot_string(a, b, n_digits):
 
     return f"{a_str}+{b_str}=" + ",".join(steps) + f",result={result_str}"
 
-def generate_answer(model, cot_str, char_to_idx, idx_to_char, device, n_digits):
+def generate_answer(model, cot_str, char_to_idx, idx_to_char, device, n_digits, verbose=False):
     """Feed the full CoT string and extract predicted answer digits after 'result='.
 
     Teacher-forcing: the model sees the entire reasoning chain (minus the last char)
@@ -46,6 +46,12 @@ def generate_answer(model, cot_str, char_to_idx, idx_to_char, device, n_digits):
     with torch.no_grad():
         output = model(input_tensor)
         predictions = output[0].argmax(dim=-1)
+
+    full_predicted_str = ''.join(idx_to_char[t.item()] for t in predictions)
+
+    if verbose:
+        print(f"    Input fed to model: {input_str}")
+        print(f"    Raw model output:   {full_predicted_str}")
 
     # prediction[i] predicts the char at position i+1 in the full string
     result_eq_pos = input_str.index("result=") + len("result=") - 1
@@ -118,14 +124,15 @@ def evaluate_by_digit(model, char_to_idx, idx_to_char, device, n_digits, num_sam
         cot_str = build_cot_string(a, b, n_digits)
         problems.append((a, b, true_answer, cot_str))
 
-    # Sanity check
+    # Sanity check with verbose output for first 3 problems
     print(f"\n  Sanity check (first 3 {n_digits}-digit problems, answer={answer_len} digits):")
     for a, b, true_answer, cot_str in problems[:3]:
-        predicted = generate_answer(model, cot_str, char_to_idx, idx_to_char, device, n_digits)
+        plain = f"{a:0{n_digits}d}+{b:0{n_digits}d}={true_answer}"
+        print(f"\n    Problem: {plain}")
+        predicted = generate_answer(model, cot_str, char_to_idx, idx_to_char, device, n_digits, verbose=True)
         match = "✓" if predicted == true_answer else "✗"
         len_ok = "✓" if len(predicted) == answer_len else f"✗ WRONG LEN (got {len(predicted)}, expected {answer_len})"
-        plain = f"{a:0{n_digits}d}+{b:0{n_digits}d}={true_answer}"
-        print(f"    {plain}  =>  true: {true_answer}  predicted: {predicted}  {match}  len: {len_ok}")
+        print(f"    Extracted answer: {predicted}  true: {true_answer}  {match}  len: {len_ok}")
 
     # Counters
     total = len(problems)
