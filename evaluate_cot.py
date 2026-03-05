@@ -243,11 +243,11 @@ def main():
     char_to_idx, idx_to_char, vocab_size, _ = create_vocabulary(cot=True)
 
     model = AdditionTransformer(vocab_size=vocab_size, max_seq_len=128)
-    model.load_state_dict(torch.load("best_model_cot.pt", map_location=device))
+    model.load_state_dict(torch.load("best_model_cot_3digit.pt", map_location=device))
     model.to(device)
     print(f"Model loaded successfully (vocab_size={vocab_size})")
 
-    for n_digits in [2, 3]:
+    for n_digits in [3]:
         results = evaluate_by_digit(model, char_to_idx, idx_to_char, device, n_digits)
         print_results(n_digits, results)
 
