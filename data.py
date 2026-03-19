@@ -30,8 +30,8 @@ def generate_cot_addition_pairs(n_digits, num_samples):
     """
     Generate addition problems with explicit carry chain-of-thought reasoning.
     Format examples:
-      - 12+34=046: "12+34=2+4=6(nc),1+3+0=4(nc),result=046"
-      - 47+68=115: "47+68=7+8=15(c1),4+6+1=11(c1),result=115"
+      - 12+34=046: "12+34=2+4=6(nc),1+3+0=4(nc),ones=6,result=046"
+      - 47+68=115: "47+68=7+8=15(c1),4+6+1=11(c1),ones=5,result=115"
     
     Works right-to-left. At each position: digit_a + digit_b + carry_in.
     (c1) = result >= 10, carry 1 to next position, digit = result % 10
@@ -76,7 +76,8 @@ def generate_cot_addition_pairs(n_digits, num_samples):
                 steps.append(f"{step_expr}(nc)")
                 carry = 0
         
-        cot = f"{a_str}+{b_str}=" + ",".join(steps) + f",result={result_str}"
+        ones_digit = result_str[-1]
+        cot = f"{a_str}+{b_str}=" + ",".join(steps) + f",ones={ones_digit},result={result_str}"
         data.append(cot)
     
     return data
@@ -85,12 +86,12 @@ def create_vocabulary(cot=False):
     """
     Create character-level vocabulary.
     When cot=False: base chars 0123456789+=
-    When cot=True: extends with (, ), n, c, , r,e,s,u,l,t and P (PAD), vocab size 24
+    When cot=True: extends with (, ), n, c, , o,r,e,s,u,l,t and P (PAD), vocab size 25
     """
     chars = '0123456789+='
     pad_idx = None
     if cot:
-        chars += '(),ncresultP'  # CoT markers; result; P = PAD for variable-length sequences
+        chars += '(),ncoresultP'  # CoT markers; ones; result; P = PAD
         pad_idx = len(chars) - 1  # P is last
     char_to_idx = {ch: i for i, ch in enumerate(chars)}
     idx_to_char = {i: ch for i, ch in enumerate(chars)}

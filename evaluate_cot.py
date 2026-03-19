@@ -29,7 +29,8 @@ def build_cot_string(a, b, n_digits):
             steps.append(f"{step_expr}(nc)")
             carry = 0
 
-    return f"{a_str}+{b_str}=" + ",".join(steps) + f",result={result_str}"
+    ones_digit = result_str[-1]
+    return f"{a_str}+{b_str}=" + ",".join(steps) + f",ones={ones_digit},result={result_str}"
 
 def generate_answer(model, cot_str, char_to_idx, idx_to_char, device, n_digits, verbose=False):
     """Feed the full CoT string and extract predicted answer digits after 'result='.
@@ -50,8 +51,12 @@ def generate_answer(model, cot_str, char_to_idx, idx_to_char, device, n_digits, 
     full_predicted_str = ''.join(idx_to_char[t.item()] for t in predictions)
 
     if verbose:
-        print(f"    Input fed to model: {input_str}")
-        print(f"    Raw model output:   {full_predicted_str}")
+        print(f"    Full CoT string:    {cot_str}  (len={len(cot_str)})")
+        print(f"    Input fed to model: {input_str}  (len={len(input_str)}, = cot_str[:-1])")
+        print(f"    Raw model output:   {full_predicted_str}  (len={len(full_predicted_str)})")
+        print(f"    Alignment: output[i] predicts cot_str[i+1]  (next-token prediction)")
+        result_eq = input_str.index("result=") + len("result=") - 1
+        print(f"    Answer slice: predictions[{result_eq}:{result_eq + n_digits + 1}] -> chars at cot_str[{result_eq+1}:{result_eq+1+n_digits+1}]")
 
     # prediction[i] predicts the char at position i+1 in the full string
     result_eq_pos = input_str.index("result=") + len("result=") - 1

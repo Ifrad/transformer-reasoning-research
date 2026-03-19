@@ -86,7 +86,7 @@ def main():
         "nhead": 4,
         "num_layers": 2,
         "dim_feedforward": 512,
-        "vocab_size": 24,
+        "vocab_size": 25,
         "mode": "chain_of_thought",
     }
     
@@ -140,7 +140,7 @@ def main():
         collate_fn=collate_fn
     )
     
-    # Model (vocab_size=24 for CoT with PAD)
+    # Model (vocab_size=25 for CoT with PAD)
     print("Creating model...")
     model = AdditionTransformer(
         vocab_size=vocab_size,
